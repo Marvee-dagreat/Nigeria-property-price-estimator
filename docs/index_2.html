@@ -258,7 +258,7 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 /* ================= CONFIG ================= */
 // Local testing uses your own computer; the live site uses your Render address.
 // After deploying, replace the PROD_API value with your real Render URL.
-const PROD_API = "https://YOUR-SERVICE-NAME.onrender.com";
+const PROD_API = "https://nigeria-property-price-estimator.onrender.com";
 const IS_LOCAL = location.protocol === "file:" || ["localhost", "127.0.0.1"].includes(location.hostname);
 const API_BASE = IS_LOCAL ? "http://127.0.0.1:8000" : PROD_API;
 
