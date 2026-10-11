@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.venv/
+.env
+.ipynb_checkpoints/
+# Keep raw datasets out of GitHub unless you are sure you may share them
+*.csv

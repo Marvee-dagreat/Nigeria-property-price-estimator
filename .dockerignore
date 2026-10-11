@@ -1,0 +1,6 @@
+.git
+docs
+__pycache__
+*.md
+*.csv
+.venv

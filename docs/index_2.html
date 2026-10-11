@@ -1,0 +1,550 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0B2F36">
+<title>Ilé · Nigerian property price estimator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,300..800&family=Instrument+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ---------- Tokens (each "page" swaps these colours) ---------- */
+:root{
+  --bg:#0B2F36; --ink:#EAF6F2; --accent:#F5B335;
+  --field:color-mix(in srgb,var(--ink) 9%,transparent);
+  --line:color-mix(in srgb,var(--ink) 38%,transparent);
+  --sky:clamp(110px,24vh,230px);
+  --ease:cubic-bezier(.7,0,.2,1);
+  --pop:cubic-bezier(.3,1.6,.5,1);
+  --display:"Bricolage Grotesque",system-ui,sans-serif;
+  --body:"Instrument Sans",system-ui,sans-serif;
+}
+*{box-sizing:border-box;margin:0}
+html{-webkit-text-size-adjust:100%}
+body{background:var(--bg);color:var(--ink);font:400 1.0625rem/1.5 var(--body);-webkit-font-smoothing:antialiased;overflow-x:hidden;min-height:100vh;min-height:100dvh}
+
+/* ---------- Chrome ---------- */
+.brand{position:fixed;z-index:10;top:18px;left:clamp(20px,4vw,56px);font:800 1.6rem/1 var(--display);letter-spacing:-.02em}
+.progress{position:fixed;z-index:10;top:26px;right:clamp(20px,4vw,56px);display:flex;gap:6px;opacity:0;transition:opacity .3s}
+body[data-step] .progress{opacity:1}
+.progress i{width:34px;height:6px;border-radius:6px;background:color-mix(in srgb,var(--ink) 25%,transparent);position:relative;overflow:hidden}
+.progress i::after{content:"";position:absolute;inset:0;background:var(--ink);transform:scaleX(0);transform-origin:left;transition:transform .6s var(--ease)}
+.progress i.on::after{transform:scaleX(1)}
+
+/* ---------- Sun + skyline (grows as you move through the steps) ---------- */
+.sun{position:fixed;z-index:0;right:12vw;bottom:calc(var(--sky) - 30px);width:clamp(120px,26vmin,320px);aspect-ratio:1;border-radius:50%;background:var(--accent);opacity:0;transform:translateY(55%);transition:transform 1.8s var(--ease) .35s,opacity 1s .35s}
+body[data-page=welcome] .sun{opacity:1;transform:none}
+.sky{position:fixed;z-index:1;left:0;right:0;bottom:0;height:var(--sky);pointer-events:none;color:var(--accent);opacity:.2;transition:opacity .6s}
+body[data-page=welcome] .sky,body[data-page=loading] .sky{opacity:1}
+body[data-page=result] .sky{opacity:.55}
+.sky svg{display:block;width:100%;height:100%}
+.sky rect{fill:currentColor;transform-box:fill-box;transform-origin:50% 100%;transform:scaleY(var(--rise,0));transition:transform 1.1s cubic-bezier(.2,.9,.2,1);transition-delay:calc(var(--i)*45ms)}
+body[data-page=loading] .sky rect{animation:pulse 1.3s ease-in-out infinite;animation-delay:calc(var(--i)*90ms)}
+@keyframes pulse{0%,100%{transform:scaleY(var(--rise))}50%{transform:scaleY(calc(var(--rise)*.5))}}
+
+/* ---------- Pages ---------- */
+.page{position:relative;z-index:2;min-height:100vh;min-height:100dvh;display:grid;align-content:center;gap:32px;padding:96px clamp(20px,4vw,56px) calc(var(--sky) + 28px)}
+.page[hidden]{display:none}
+@media(min-width:880px){
+  .page{grid-template-columns:1.1fr 1fr;align-items:center;column-gap:6vw}
+  .page.solo{grid-template-columns:minmax(0,1fr)}
+}
+h1,h2{font:800 clamp(2.5rem,6.2vw,5.4rem)/.94 var(--display);font-stretch:82%;letter-spacing:-.035em;outline:none}
+.line{display:block;overflow:hidden;padding-bottom:.1em;margin-bottom:-.1em}
+.line>span{display:block}
+.lede{max-width:34ch;margin-top:22px;font-size:1.15rem;opacity:.88}
+.fine{display:flex;align-items:center;gap:8px;margin-top:14px;font-size:.92rem;opacity:.82}
+.dot{width:10px;height:10px;border-radius:50%;background:#9aa;flex:none}
+.dot.ok{background:#4ADE80}.dot.bad{background:#FF6B6B}
+
+/* ---------- Form controls ---------- */
+.form{display:grid;gap:22px;max-width:520px;width:100%}
+label,.lbl{display:block;font-weight:600;margin-bottom:8px}
+.input{width:100%;font:inherit;font-size:1.15rem;color:inherit;background:var(--field);border:2px solid var(--line);border-radius:14px;padding:14px 16px;transition:border-color .2s,background .2s}
+.input::placeholder{color:color-mix(in srgb,var(--ink) 55%,transparent)}
+.input:focus-visible{outline:3px solid var(--ink);outline-offset:2px;border-color:var(--ink)}
+.input.bad{animation:shake .4s}
+@keyframes shake{20%,60%{transform:translateX(-7px)}40%,80%{transform:translateX(7px)}}
+.hint{font-size:.92rem;opacity:.78;margin-top:6px}
+.err{font-weight:700;margin-top:6px;text-decoration:underline;text-underline-offset:3px}
+.err:empty{display:none}
+.chips{display:flex;flex-wrap:wrap;gap:10px}
+.chip{font:600 1rem var(--body);color:inherit;background:transparent;border:2px solid var(--line);border-radius:999px;padding:10px 18px;cursor:pointer;transition:transform .25s var(--pop),background .2s,color .2s,border-color .2s}
+.chip[aria-pressed=true]{background:var(--ink);color:var(--bg);border-color:var(--ink);transform:scale(1.06)}
+.steppers{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.step{display:flex;align-items:center;justify-content:space-between;background:var(--field);border:2px solid var(--line);border-radius:14px;padding:6px 8px 6px 16px}
+.step b{font:800 1.7rem/1 var(--display);min-width:2ch;text-align:center;display:inline-block}
+.step button{width:40px;height:40px;border-radius:50%;border:0;background:var(--ink);color:var(--bg);font:700 1.4rem/1 var(--body);cursor:pointer;transition:transform .2s var(--pop)}
+.step button:active{transform:scale(.88)}
+.row{display:flex;gap:12px;flex-wrap:wrap;margin-top:6px}
+.btn{font:700 1.1rem var(--body);border:2px solid var(--ink);border-radius:999px;padding:15px 28px;background:var(--ink);color:var(--bg);cursor:pointer;transition:transform .25s var(--pop)}
+.btn:hover{transform:translateY(-2px) scale(1.03)}
+.btn:active{transform:scale(.97)}
+.btn.ghost{background:transparent;color:var(--ink);border-color:var(--line)}
+.chip:focus-visible,.btn:focus-visible,.step button:focus-visible{outline:3px solid var(--ink);outline-offset:3px}
+
+/* ---------- Result + error ---------- */
+.price{font:800 clamp(2.2rem,9vw,6.6rem)/1 var(--display);font-stretch:80%;letter-spacing:-.04em;color:var(--accent);overflow-wrap:anywhere;margin:6px 0 4px}
+.summary{font-size:1.2rem;font-weight:600;margin-top:10px}
+.note{border-left:4px solid var(--accent);padding:2px 0 2px 16px;max-width:54ch;margin:22px 0 24px;opacity:.92}
+.code{margin-top:10px;padding:14px 16px;border-radius:12px;background:color-mix(in srgb,var(--ink) 12%,transparent);font:.9rem/1.5 ui-monospace,Menlo,Consolas,monospace;white-space:pre-wrap;overflow-x:auto}
+.help{max-width:60ch;margin-top:18px}
+.help ol{padding-left:1.3em;display:grid;gap:12px}
+.wipe{position:fixed;inset:0;z-index:50;pointer-events:none}
+@media(prefers-reduced-motion:reduce){*{transition-duration:.01ms!important;animation-duration:.01ms!important;transition-delay:0s!important}}
+</style>
+</head>
+<body data-page="boot">
+
+<!--
+  SETUP (2 things):
+  1) Set API_BASE below to wherever your FastAPI server runs.
+  2) In app.py, allow this page to call your API (CORS):
+       from fastapi.middleware.cors import CORSMiddleware
+       app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+-->
+
+<div class="brand" aria-label="Ilé">Ilé</div>
+<div class="progress" aria-hidden="true"><i></i><i></i><i></i></div>
+<div class="sun" aria-hidden="true"></div>
+<div class="sky" id="sky" aria-hidden="true"></div>
+
+<main>
+  <!-- Welcome -->
+  <section class="page solo" id="p-welcome">
+    <div>
+      <h1 tabindex="-1"><span class="line"><span>What would this</span></span><span class="line"><span>property list for?</span></span></h1>
+      <p class="lede" data-in>Tell us where it is and what it has. A model trained on more than 1,600 Nigerian listings estimates the asking price.</p>
+      <div class="row" data-in style="margin-top:26px"><button class="btn" id="start" type="button">Start an estimate</button></div>
+      <p class="fine" data-in><span class="dot" id="api-dot"></span><span id="api-text">Checking the prediction API…</span></p>
+      <p class="fine" data-in>A learning project. Treat results as a guide, not a valuation.</p>
+    </div>
+  </section>
+
+  <!-- Step 1: where -->
+  <section class="page" id="p-where" hidden>
+    <div>
+      <h2 tabindex="-1"><span class="line"><span>Where is</span></span><span class="line"><span>the property?</span></span></h2>
+      <p class="lede" data-in>Location is one of the strongest signals in the data.</p>
+    </div>
+    <form class="form" id="f-where" novalidate>
+      <div data-in>
+        <label for="in-state">State</label>
+        <input class="input" id="in-state" list="dl-state" autocomplete="off" placeholder="e.g. Lagos">
+        <p class="err" role="alert"></p>
+      </div>
+      <div data-in>
+        <label for="in-district">District or area</label>
+        <input class="input" id="in-district" list="dl-district" autocomplete="off" placeholder="e.g. Lekki">
+        <p class="hint">Pick a suggestion or type your own.</p>
+        <p class="err" role="alert"></p>
+      </div>
+      <div class="row" data-in>
+        <button type="button" class="btn ghost" data-back="welcome">Back</button>
+        <button type="submit" class="btn">Next: the house</button>
+      </div>
+    </form>
+  </section>
+
+  <!-- Step 2: the house -->
+  <section class="page" id="p-house" hidden>
+    <div>
+      <h2 tabindex="-1"><span class="line"><span>Tell us about</span></span><span class="line"><span>the house.</span></span></h2>
+      <p class="lede" data-in>Rooms and property type, as they would appear in the listing.</p>
+    </div>
+    <form class="form" id="f-house" novalidate>
+      <div data-in>
+        <label for="in-type">Property type</label>
+        <input class="input" id="in-type" list="dl-type" autocomplete="off" placeholder="e.g. Detached Duplex">
+        <p class="err" role="alert"></p>
+      </div>
+      <div class="steppers" data-in>
+        <div><span class="lbl">Bedrooms</span><div class="step" data-key="bedrooms" data-min="0" data-max="20"><button type="button" data-d="-1" aria-label="Fewer bedrooms">−</button><b>3</b><button type="button" data-d="1" aria-label="More bedrooms">+</button></div></div>
+        <div><span class="lbl">Bathrooms</span><div class="step" data-key="bathrooms" data-min="0" data-max="20"><button type="button" data-d="-1" aria-label="Fewer bathrooms">−</button><b>3</b><button type="button" data-d="1" aria-label="More bathrooms">+</button></div></div>
+        <div><span class="lbl">Toilets</span><div class="step" data-key="toilets" data-min="0" data-max="20"><button type="button" data-d="-1" aria-label="Fewer toilets">−</button><b>4</b><button type="button" data-d="1" aria-label="More toilets">+</button></div></div>
+        <div><span class="lbl">Parking spaces</span><div class="step" data-key="parking" data-min="0" data-max="30"><button type="button" data-d="-1" aria-label="Fewer parking spaces">−</button><b>2</b><button type="button" data-d="1" aria-label="More parking spaces">+</button></div></div>
+      </div>
+      <div class="row" data-in>
+        <button type="button" class="btn ghost" data-back="where">Back</button>
+        <button type="submit" class="btn">Next: final details</button>
+      </div>
+    </form>
+  </section>
+
+  <!-- Step 3: extras -->
+  <section class="page" id="p-extras" hidden>
+    <div>
+      <h2 tabindex="-1"><span class="line"><span>A few more</span></span><span class="line"><span>details.</span></span></h2>
+      <p class="lede" data-in>Leave these as they are if the listing doesn’t say.</p>
+    </div>
+    <form class="form" id="f-extras" novalidate>
+      <div data-in>
+        <span class="lbl">Market status</span>
+        <div class="chips" data-key="market">
+          <button type="button" class="chip" data-v="Available" aria-pressed="true">Available</button>
+          <button type="button" class="chip" data-v="Not Available" aria-pressed="false">Not available</button>
+        </div>
+      </div>
+      <div data-in>
+        <span class="lbl">Servicing</span>
+        <div class="chips" data-key="servicing">
+          <button type="button" class="chip" data-v="Unknown" aria-pressed="true">Not specified</button>
+          <button type="button" class="chip" data-v="Serviced" aria-pressed="false">Serviced</button>
+        </div>
+      </div>
+      <div data-in>
+        <span class="lbl">Furnishing</span>
+        <div class="chips" data-key="furnishing">
+          <button type="button" class="chip" data-v="Unknown" aria-pressed="true">Not specified</button>
+          <button type="button" class="chip" data-v="Furnished" aria-pressed="false">Furnished</button>
+        </div>
+      </div>
+      <div class="row" data-in>
+        <button type="button" class="btn ghost" data-back="house">Back</button>
+        <button type="submit" class="btn">Get my estimate</button>
+      </div>
+    </form>
+  </section>
+
+  <!-- Loading -->
+  <section class="page solo" id="p-loading" hidden>
+    <div>
+      <h2 tabindex="-1"><span class="line"><span>Reading the</span></span><span class="line"><span>market…</span></span></h2>
+      <p class="lede" id="load-msg" role="status"></p>
+    </div>
+  </section>
+
+  <!-- Result -->
+  <section class="page solo" id="p-result" hidden>
+    <div>
+      <h2 tabindex="-1" style="font-size:clamp(1.6rem,3.4vw,2.6rem)"><span class="line"><span>Estimated listing price</span></span></h2>
+      <div class="price" id="price">₦0</div>
+      <p class="lede" id="price-words" style="margin-top:6px" data-in></p>
+      <p class="summary" id="summary" data-in></p>
+      <p class="note" data-in>This is a model estimate, not a valuation. Across test listings the average miss was about ₦249 million. It is closest for ordinary homes and least reliable for rare luxury listings.</p>
+      <div class="row" data-in>
+        <button type="button" class="btn" id="again">Estimate another</button>
+        <button type="button" class="btn ghost" id="edit">Change details</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Error -->
+  <section class="page solo" id="p-error" hidden>
+    <div>
+      <h2 tabindex="-1"><span class="line"><span id="err-title">Couldn’t get an estimate</span></span></h2>
+      <p class="lede" id="err-msg" style="max-width:56ch"></p>
+      <div class="help" id="err-help" hidden>
+        <ol>
+          <li>Start the server in your api folder:<div class="code">python -m uvicorn app:app --reload</div></li>
+          <li>Let this page call it. Add this to app.py, right after <code>app = FastAPI()</code>:<div class="code">from fastapi.middleware.cors import CORSMiddleware
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])</div></li>
+        </ol>
+      </div>
+      <div class="row" style="margin-top:26px">
+        <button type="button" class="btn" id="retry">Try again</button>
+        <button type="button" class="btn ghost" id="err-edit">Change details</button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<datalist id="dl-state"></datalist>
+<datalist id="dl-district"></datalist>
+<datalist id="dl-type"></datalist>
+
+<script>
+/* ================= CONFIG ================= */
+// Local testing uses your own computer; the live site uses your Render address.
+// After deploying, replace the PROD_API value with your real Render URL.
+const PROD_API = "https://YOUR-SERVICE-NAME.onrender.com";
+const IS_LOCAL = location.protocol === "file:" || ["localhost", "127.0.0.1"].includes(location.hostname);
+const API_BASE = IS_LOCAL ? "http://127.0.0.1:8000" : PROD_API;
+
+// Suggestions only (you can still type anything). To match your training data exactly,
+// run df["District"].unique() etc. in your notebook and paste the values here.
+const OPTIONS = {
+  state: ["Lagos", "Abuja", "Ogun"],
+  district: ["Lekki", "Ajah", "Ikoyi", "Victoria Island (VI)", "Ikeja", "Magodo", "Ikorodu", "Maitama District",
+             "Asokoro District", "Guzape District", "Gwarinpa", "Lokogoma District", "Lugbe District", "Ibadan", "Other"],
+  type: ["Detached Duplex", "Detached Bungalow", "Semi-detached Bungalow", "Block of Flats", "House"]
+};
+
+/* Each page has its own colour world. `rise` = how tall the skyline grows. */
+const THEMES = {
+  welcome:{bg:"#0B2F36",ink:"#EAF6F2",accent:"#F5B335",rise:1},
+  where:  {bg:"#F5B335",ink:"#1B1405",accent:"#0B2F36",rise:.22},
+  house:  {bg:"#7CC8E8",ink:"#06222E",accent:"#E4572E",rise:.45},
+  extras: {bg:"#1F7A4D",ink:"#F4FFF8",accent:"#FFD166",rise:.7},
+  loading:{bg:"#1F7A4D",ink:"#F4FFF8",accent:"#FFD166",rise:1},
+  result: {bg:"#2B1B6B",ink:"#FFF6E5",accent:"#FFB84D",rise:1},
+  error:  {bg:"#7A1F2B",ink:"#FFF1EE",accent:"#FFB4A8",rise:.15}
+};
+const STEP_OF = {where:1, house:2, extras:3};
+
+/* ================= HELPERS ================= */
+const $ = s => document.querySelector(s);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const norm = s => String(s).toLowerCase().replace(/[^a-z0-9]/g, "");
+class SetupError extends Error {}
+class ApiError extends Error {}
+
+const form = {state:"", district:"", type:"", bedrooms:3, bathrooms:3, toilets:4, parking:2,
+              market:"Available", servicing:"Unknown", furnishing:"Unknown"};
+
+/* ================= SKYLINE ================= */
+const skyEl = $("#sky");
+(function buildSky(){
+  const H = [.55,.8,.4,.95,.65,.5,.85,.45,1,.6,.75,.35,.9,.55,.7,.42,.82,.6];
+  let r = "";
+  H.forEach((h,i)=>{ const hh=h*200; r += `<rect style="--i:${i}" x="${i*100+6}" y="${200-hh}" width="88" height="${hh}"/>`; });
+  skyEl.innerHTML = `<svg viewBox="0 0 ${H.length*100} 200" preserveAspectRatio="none">${r}</svg>`;
+})();
+
+/* ================= THEMES & PAGES ================= */
+const pages = [...document.querySelectorAll(".page")];
+let current = "boot", busy = false;
+
+function applyTheme(name){
+  const t = THEMES[name], s = document.documentElement.style;
+  s.setProperty("--bg", t.bg); s.setProperty("--ink", t.ink); s.setProperty("--accent", t.accent);
+  skyEl.style.setProperty("--rise", t.rise);
+  document.body.dataset.page = name;
+  const step = STEP_OF[name];
+  if (step) document.body.dataset.step = step; else delete document.body.dataset.step;
+  document.querySelectorAll(".progress i").forEach((el,i)=>el.classList.toggle("on", step ? i < step : false));
+  document.querySelector('meta[name="theme-color"]').content = t.bg;
+}
+
+function show(name){
+  pages.forEach(p => p.hidden = p.id !== "p-" + name);
+  applyTheme(name);
+  scrollTo(0,0);
+}
+
+function enter(page){
+  const h = page.querySelector("h1,h2"); if (h) h.focus({preventScroll:true});
+  if (reduce) return;
+  page.querySelectorAll(".line>span").forEach((el,i)=>el.animate(
+    [{transform:"translateY(110%)"},{transform:"none"}],
+    {duration:850,delay:80+i*110,easing:"cubic-bezier(.2,.9,.2,1)",fill:"backwards"}));
+  page.querySelectorAll("[data-in]").forEach((el,i)=>el.animate(
+    [{opacity:0,transform:"translateY(18px)"},{opacity:1,transform:"none"}],
+    {duration:600,delay:320+i*90,easing:"cubic-bezier(.2,.9,.2,1)",fill:"backwards"}));
+}
+
+/* Two colour layers expand from the button you pressed: the next page's accent, then its background. */
+function wipe(to, origin){
+  const r = origin && origin.getBoundingClientRect();
+  const x = r ? r.left + r.width/2 : innerWidth/2, y = r ? r.top + r.height/2 : innerHeight/2;
+  const maxR = Math.hypot(Math.max(x, innerWidth-x), Math.max(y, innerHeight-y));
+  const t = THEMES[to];
+  const make = (color, delay) => {
+    const el = document.createElement("div"); el.className = "wipe"; el.style.background = color;
+    document.body.append(el);
+    const a = el.animate(
+      [{clipPath:`circle(0px at ${x}px ${y}px)`},{clipPath:`circle(${maxR}px at ${x}px ${y}px)`}],
+      {duration:700,delay,easing:"cubic-bezier(.7,0,.2,1)",fill:"both"});
+    return {el, done:a.finished};
+  };
+  const l1 = make(t.accent, 0), l2 = make(t.bg, 150);
+  return l2.done.then(() => [l1.el, l2.el]);
+}
+
+async function go(to, origin){
+  if (busy || to === current) return;
+  busy = true;
+  const sameTheme = current !== "boot" && THEMES[to].bg === THEMES[current].bg;
+  let layers = [];
+  if (!reduce && !sameTheme && current !== "boot") layers = await wipe(to, origin);
+  show(to); current = to;
+  layers.forEach(l => l.remove());
+  enter($("#p-" + to));
+  busy = false;
+}
+
+/* ================= FORMS ================= */
+for (const [k, list] of Object.entries(OPTIONS)) {
+  $("#dl-" + k).innerHTML = list.map(v => `<option value="${v}">`).join("");
+}
+
+function need(input){
+  const msg = input.parentElement.querySelector(".err");
+  if (!input.value.trim()) {
+    input.classList.remove("bad"); void input.offsetWidth; input.classList.add("bad");
+    msg.textContent = "Please fill this in."; input.focus(); return false;
+  }
+  msg.textContent = ""; return true;
+}
+
+$("#start").onclick = e => go("where", e.currentTarget);
+document.querySelectorAll("[data-back]").forEach(b => b.onclick = () => go(b.dataset.back, b));
+
+$("#f-where").onsubmit = e => {
+  e.preventDefault();
+  const s = $("#in-state"), d = $("#in-district");
+  if (!need(s) || !need(d)) return;
+  form.state = s.value.trim(); form.district = d.value.trim();
+  go("house", e.submitter);
+};
+$("#f-house").onsubmit = e => {
+  e.preventDefault();
+  const t = $("#in-type");
+  if (!need(t)) return;
+  form.type = t.value.trim();
+  go("extras", e.submitter);
+};
+$("#f-extras").onsubmit = e => { e.preventDefault(); predict(e.submitter); };
+
+document.querySelectorAll(".step").forEach(box => {
+  const key = box.dataset.key, out = box.querySelector("b"), min = +box.dataset.min, max = +box.dataset.max;
+  box.addEventListener("click", e => {
+    const btn = e.target.closest("button"); if (!btn) return;
+    form[key] = Math.min(max, Math.max(min, form[key] + +btn.dataset.d));
+    out.textContent = form[key];
+    if (!reduce) out.animate([{transform:"scale(1.4)"},{transform:"none"}],{duration:280,easing:"cubic-bezier(.3,1.6,.5,1)"});
+  });
+});
+document.querySelectorAll(".chips").forEach(group => {
+  group.addEventListener("click", e => {
+    const chip = e.target.closest(".chip"); if (!chip) return;
+    group.querySelectorAll(".chip").forEach(c => c.setAttribute("aria-pressed", c === chip));
+    form[group.dataset.key] = chip.dataset.v;
+  });
+});
+
+/* ================= API ================= */
+let schemaCache = null;
+
+/* Reads FastAPI's own /openapi.json so field names always match your app.py. */
+async function getSchema(){
+  if (schemaCache) return schemaCache;
+  const res = await fetch(API_BASE + "/openapi.json");
+  if (!res.ok) throw new SetupError(`Reached the server, but /openapi.json returned ${res.status}.`);
+  const spec = await res.json();
+  const posts = Object.entries(spec.paths || {}).filter(([, item]) => item.post);
+  if (!posts.length) throw new SetupError("The API has no POST endpoint to send a prediction request to.");
+  const [path, item] = posts.find(([p]) => /predict/i.test(p)) || posts[0];
+  let sch = item.post.requestBody?.content?.["application/json"]?.schema;
+  if (!sch) throw new SetupError(`POST ${path} doesn’t take a JSON body, so this page can’t fill it in. Send me app.py and I’ll adapt the page.`);
+  if (sch.$ref) sch = spec.components.schemas[sch.$ref.split("/").pop()];
+  const props = Object.keys(sch?.properties || {});
+  if (!props.length) throw new SetupError(`Couldn’t read the input fields of POST ${path}. Send me app.py and I’ll adapt the page.`);
+  return schemaCache = {url: API_BASE + path, props, required: sch.required || []};
+}
+
+function buildBody(sc){
+  const now = new Date();
+  const vals = {marketstatus:form.market, type:form.type, bedrooms:form.bedrooms, bathrooms:form.bathrooms,
+    toilets:form.toilets, parkingspaces:form.parking, district:form.district, state:form.state,
+    servicing:form.servicing, furnishing:form.furnishing, addedyear:now.getFullYear(), addedmonth:now.getMonth()+1};
+  const keys = Object.keys(vals), body = {}, missing = [];
+  for (const p of sc.props) {
+    const n = norm(p);
+    let k = n in vals ? n : keys.filter(x => n.includes(x)).sort((a,b)=>b.length-a.length)[0];
+    if (!k && n.startsWith("parking")) k = "parkingspaces";
+    if (k) body[p] = vals[k]; else if (sc.required.includes(p)) missing.push(p);
+  }
+  if (missing.length) throw new SetupError(`The API expects fields this page doesn’t know how to fill: ${missing.join(", ")}. Send me app.py and I’ll match them.`);
+  return body;
+}
+
+function pickNumber(x){
+  if (typeof x === "number") return x;
+  if (typeof x === "string" && x.trim() !== "" && !isNaN(+x)) return +x;
+  if (Array.isArray(x)) return x.length ? pickNumber(x[0]) : null;
+  if (x && typeof x === "object") {
+    const keys = Object.keys(x).sort((a,b)=>(/price|predict/i.test(b)) - (/price|predict/i.test(a)));
+    for (const k of keys) { const v = pickNumber(x[k]); if (v !== null) return v; }
+  }
+  return null;
+}
+
+function describeFailure(status, data){
+  if (status === 422 && Array.isArray(data?.detail))
+    return "The API rejected the input: " + data.detail.map(d => `${(d.loc||[]).slice(1).join(".")} ${d.msg}`).join("; ");
+  if (status >= 500) return "The API crashed while predicting. Check the terminal running Uvicorn for the error message.";
+  return `The API answered with status ${status}.`;
+}
+
+async function checkApi(){
+  const slow = setTimeout(()=>{ $("#api-text").textContent = "Waking the server… free hosting can take about a minute"; }, 4000);
+  try { await getSchema(); $("#api-dot").className = "dot ok"; $("#api-text").textContent = "Prediction API connected"; }
+  catch (e) {
+    schemaCache = null;
+    $("#api-dot").className = "dot bad";
+    $("#api-text").textContent = e instanceof SetupError ? e.message : `Can’t reach the API at ${API_BASE} yet`;
+  }
+  clearTimeout(slow);
+}
+
+/* ================= PREDICT ================= */
+const MSGS = ["Comparing with 1,600+ Nigerian listings","Weighing the neighbourhood","Counting rooms and parking","Working out the number"];
+let msgTimer;
+let wakeTimer;
+function startMsgs(){
+  let i = 0; $("#load-msg").textContent = MSGS[0];
+  msgTimer = setInterval(()=>{ i=(i+1)%MSGS.length; $("#load-msg").textContent = MSGS[i]; }, 900);
+  // Free hosting sleeps when idle; the first request can take about a minute.
+  wakeTimer = setTimeout(()=>{ clearInterval(msgTimer); $("#load-msg").textContent = "The free server may be waking up. This can take about a minute."; }, 7000);
+}
+const stopMsgs = () => { clearInterval(msgTimer); clearTimeout(wakeTimer); };
+
+const money = v => "₦" + Math.round(v).toLocaleString("en-NG");
+const words = v => v >= 1e9 ? `about ₦${(v/1e9).toFixed(2)} billion` : v >= 1e6 ? `about ₦${Math.round(v/1e6)} million` : `about ₦${Math.round(v/1e3)} thousand`;
+
+function countUp(el, to){
+  if (reduce) { el.textContent = money(to); return; }
+  const t0 = performance.now(), ms = 1900, ease = t => t >= 1 ? 1 : 1 - Math.pow(2, -10*t);
+  (function tick(now){ const t = Math.min(1,(now-t0)/ms); el.textContent = money(to*ease(t)); if (t < 1) requestAnimationFrame(tick); })(t0);
+}
+
+async function predict(origin){
+  await go("loading", origin);
+  startMsgs();
+  const t0 = performance.now();
+  try {
+    const sc = await getSchema();
+    const res = await fetch(sc.url, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(buildBody(sc))});
+    const data = await res.json().catch(() => null);
+    if (!res.ok) throw new ApiError(describeFailure(res.status, data));
+    let v = pickNumber(data);
+    if (v === null) throw new ApiError("The API replied, but I couldn’t find a price in: " + JSON.stringify(data).slice(0,200));
+    if (v < 100) v = Math.expm1(v);   // tiny numbers mean the model returned log1p(price)
+    await sleep(Math.max(0, 1700 - (performance.now() - t0)));
+    stopMsgs();
+    $("#price").textContent = money(0);
+    $("#price-words").textContent = words(v);
+    $("#summary").textContent = `${form.bedrooms}-bedroom ${form.type} in ${form.district}, ${form.state}`;
+    await go("result", null);
+    countUp($("#price"), v);
+  } catch (e) {
+    stopMsgs();
+    const net = e instanceof TypeError && /fetch|network|load failed/i.test(e.message);
+    if (net) schemaCache = null;
+    $("#err-title").textContent = net ? "Can’t reach the API" : "No estimate this time";
+    $("#err-msg").textContent = net ? `No response from ${API_BASE}. Either the server isn’t running, or the browser blocked the request (CORS).` : e.message;
+    $("#err-help").hidden = !net;
+    await go("error", null);
+  }
+}
+
+$("#again").onclick = e => go("where", e.currentTarget);
+$("#edit").onclick = e => go("extras", e.currentTarget);
+$("#err-edit").onclick = e => go("extras", e.currentTarget);
+$("#retry").onclick = e => predict(e.currentTarget);
+
+/* ================= BOOT ================= */
+skyEl.style.setProperty("--rise", 0);
+requestAnimationFrame(() => requestAnimationFrame(() => {
+  show("welcome"); current = "welcome";
+  skyEl.style.setProperty("--rise", 0);
+  requestAnimationFrame(() => skyEl.style.setProperty("--rise", THEMES.welcome.rise));
+  enter($("#p-welcome"));
+  checkApi();
+}));
+</script>
+</body>
+</html>
